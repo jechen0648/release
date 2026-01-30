@@ -277,6 +277,23 @@ until oc wait -n openshift-frr-k8s deployment --all --for condition=Available --
   sleep 5
 done
 
+# Override FRR-K8s with an upstream image needed 
+# This is used while waiting for OCP builds with FRR 10
+# This will be removed once OCP builds with FRR 10 are available
+if [ "${USE_UPSTREAM_FRR_IMAGE:-}" = "true" ]; then
+  echo "Overriding FRR-K8s with upstream FRR 10 image..."
+  echo "Setting CNO to Unmanaged..."
+  $KCLI patch Network.operator.openshift.io cluster --type=merge -p='{"spec":{"managementState": "Unmanaged"}}'
+
+  echo "Setting FRR image to quay.io/frrouting/frr:10.4.1..."
+  $KCLI set image -n openshift-frr-k8s ds/frr-k8s frr=quay.io/frrouting/frr:10.4.1 reloader=quay.io/frrouting/frr:10.4.1
+
+  echo "Waiting for daemonset 'frr-k8s' to rollout..."
+  until $KCLI rollout status daemonset -n openshift-frr-k8s frr-k8s --timeout 2m &> /dev/null; do
+      sleep 5
+  done
+fi
+
 # set up BGP peering of the cluster with the external FRR instance container
 # peer is setup on the default VRF and also on each extra network VRF
 for network in "${!vrf_neighbors[@]}"; do
