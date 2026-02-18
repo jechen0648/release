@@ -310,7 +310,10 @@ function suite() {
     fi
 
     if [[ -n "${TEST_SKIPS}" && ("${TEST_SUITE}" == "openshift/conformance/parallel" || "${TEST_SUITE}" == "openshift/auth/external-oidc" || "${TEST_SUITE}" ==  "openshift/two-node") ]]; then
-        TESTS="$(openshift-tests run "${TEST_SUITE}" --dry-run --provider "${TEST_PROVIDER}" "${HYPERVISOR_ARGS[@]}")" &&
+        # Normalize TEST_SKIPS for grep: support both single-line (determinized YAML) and multi-line (legacy) formats.
+        # Multi-line YAML becomes one string with newlines; collapse to single-line regex with \| alternation.
+        TEST_SKIPS="$(printf '%s' "${TEST_SKIPS}" | sed ':a;N;$!ba;s/\n[[:space:]]*/\\|/g' | tr -d '\n')"
+        TESTS="$(openshift-tests run --dry-run --provider "${TEST_PROVIDER}" "${TEST_SUITE}")" &&
         echo "${TESTS}" | grep -v "${TEST_SKIPS}" >/tmp/tests &&
         echo "Skipping tests:" &&
         echo "${TESTS}" | grep "${TEST_SKIPS}" || { exit_code=$?; echo 'Error: no tests were found matching the TEST_SKIPS regex:'; echo "$TEST_SKIPS"; return $exit_code; } &&
